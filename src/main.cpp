@@ -5,6 +5,8 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <ctime>
+
 
 
 extern "C"
@@ -16,6 +18,30 @@ extern "C"
 }
 using namespace std;
 
+void SaveFrame(AVFrame *pFrame, int width, int height, int iFrame)
+{
+     FILE *pFile;
+     char szFilename[32];
+     int  y;
+
+     // Open file
+     sprintf(szFilename, "frame%06d.jpeg", iFrame);
+     pFile=fopen(szFilename, "wb");
+     if(pFile==NULL)
+         return;
+
+     // Write header
+     fprintf(pFile, "P6\n%d %d\n255\n", width, height);
+
+     // Write pixel data
+    for(y=0; y<height; y++)
+         fwrite(pFrame->data[0]+y*pFrame->linesize[0], 1, width*3, pFile);
+
+    // Close file
+    fclose(pFile);
+ }
+
+
 int WriteJPEG (AVCodecContext *pCodecCtx, AVFrame *pFrame, int FrameNo){
     AVCodecContext         *pOCodecCtx;
     AVCodec                *pOCodec;
@@ -23,7 +49,7 @@ int WriteJPEG (AVCodecContext *pCodecCtx, AVFrame *pFrame, int FrameNo){
     uint8_t                *Buffer;
     int                     BufSiz;
     int                     BufSizActual;
-
+    
     FILE                   *JPEGFile;
     char                    JPEGFName[256];
     AVDictionary **options;
@@ -71,24 +97,24 @@ int WriteJPEG (AVCodecContext *pCodecCtx, AVFrame *pFrame, int FrameNo){
     pFrame->quality = pOCodecCtx->global_quality;
     BufSizActual = avcodec_encode_video(
                                         pOCodecCtx,Buffer,BufSiz,pFrame );
-    
+    /*
     sprintf ( JPEGFName, "%06d.jpg", FrameNo );
     JPEGFile = fopen ( JPEGFName, "wb" );
     fwrite ( Buffer, 1, BufSizActual, JPEGFile );
     fclose ( JPEGFile );
     cout<<JPEGFName<<endl;
     avcodec_close ( pOCodecCtx );
-    free ( Buffer );
+    free ( Buffer );*/
+    cout<<FrameNo<<endl;
     return ( BufSizActual );
 }
 
 
 
 
-
 int main()
 {
-
+    
     
     using namespace std;
     int got_output;
@@ -133,13 +159,13 @@ int main()
     
     AVStream* stream=NULL;
     int count = 0;
-
+    
     //play stream
     av_read_play(avf_context);
-
+    
     avcodec_get_context_defaults3(avc_context, codec);
     avcodec_copy_context(avc_context, avf_context->streams[video_stream_index]->codec);
-
+    
     AVDictionary **options;
     if(avcodec_open2(avc_context, codec, options)<0) exit(0);
     
@@ -150,31 +176,42 @@ int main()
     cout<<pic_size<<"!!"<<pic_buffer<<endl;
     AVFrame* pic = avcodec_alloc_frame();
     
-    avpicture_fill((AVPicture *) pic, pic_buffer, PIX_FMT_YUV420P, avc_context->width, avc_context->height);
+    avpicture_fill((AVPicture *) pic, pic_buffer, PIX_FMT_YUVJ420P, avc_context->width, avc_context->height);
     
     int dest_size = avc_context->width *3 *avc_context->height;
+    
+    AVFrame *pFrameRGB = avcodec_alloc_frame();
+    
+    FILE                   *JPEGFile;
+    char                    JPEGFName[256];
 
-
-    while(av_read_frame(avf_context,&packet)>=0)
+    time_t start = time(nullptr);
+    
+    while(av_read_frame(avf_context,&packet)>=0 && count<300)
     {
         if(packet.stream_index==video_stream_index){
             //Decode video frame:
             int check = 0;
-            int result = avcodec_decode_video2(avc_context, pic, &check, &packet);
-            cout<<result<<" decoded bytes"<<endl;
+            //int result = avcodec_decode_video2(avc_context, pic, &check, &packet);
             
-            if (check){
-                WriteJPEG(avc_context, pic, count);
-                
-                //Write to file:
-                
-                /* Write JPEG to file */
-                
             
-            }
+           // if (check){
+//                cout<<result<<" decoded bytes"<<endl;
+               // printf("azaza %d %d %d %d %d %d\n", pic->linesize[0], pic->data[1][0], pic->data[0][2], pic->data[0][3], pic->data[0][4],pic->data[0][5], pic->data[0][6]);
+                //WriteJPEG(avc_context, pic, count);
+                //SaveFrame(pic, 320, 240, count);
+                // Save the frame to disk
+
+                
+           // }
         }
         count++;
+        printf ("Count: %d\n", count);
+
     }
+    
+    time_t end = time(nullptr);
+    cout << end - start<< endl;
     av_free(pic);
     av_free(pic_buffer);
     
